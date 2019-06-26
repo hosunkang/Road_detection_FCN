@@ -31,7 +31,7 @@ dir_data = "data_road/training"
 dir_seg = dir_data + "/gt_image/"
 dir_img = dir_data + "/image/"
 n_classes = 3
-epoch_size = 10
+epoch_size = 300
 input_height , input_width = 224 , 224
 output_height , output_width = 224 , 224
 
@@ -148,14 +148,22 @@ def predict():
 
     run_dir = 'run/'
     now = datetime.now()
-    run_folder_name = '{}.{}.{}.{}.{}/'.format(now.year,now.month,now.day,now.hour,now.minute) # Year.Month.Day.Hour.Munite
+    run_folder_name = 'time_{}.{:02d}.{:02d}_{:02d}.{:02d}/'.format(now.year,
+                                                                    now.month,
+                                                                    now.day,
+                                                                    now.hour,
+                                                                    now.minute)
     run_dir = run_dir + run_folder_name
-    # cv2.imshow('image',give_color_to_seg_img(y_test_arg[1],n_classes))
-    # cv2.waitKey(0)
-    # cv2.destroyAllWindows()
+    os.mkdir(run_dir)
+    
 
     for seg, im in zip(y_test_arg, test_images):
-        cv2.imwrite(run_dir+im, give_color_to_seg_img(seg,n_classes))
+        temp = give_color_to_seg_img(seg,n_classes)
+        temp = 255 * temp # Now scale by 255
+        img = temp.astype(np.uint8)
+        cv2.imwrite(run_dir+im, img)
+    
+    print("=======Saved all Segmentation Images=======")
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
