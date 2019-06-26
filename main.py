@@ -11,6 +11,8 @@ from keras.backend.tensorflow_backend import set_session
 from sklearn.utils import shuffle
 from keras import optimizers
 from model import fcn8
+from keras.models import load_model
+from datetime import datetime
 
 ############ Check environment
 warnings.filterwarnings("ignore")
@@ -24,20 +26,23 @@ print("python {}".format(sys.version))
 print("keras version {}".format(keras.__version__)); del keras
 print("tensorflow version {}".format(tf.__version__))
 
-############ Setup
+############ Train Setup
 dir_data = "data_road/training"
 dir_seg = dir_data + "/gt_image/"
 dir_img = dir_data + "/image/"
 n_classes = 3
-VGG_Weights_path = "vgg16_weights_tf_dim_ordering_tf_kernels_notop.h5"
+epoch_size = 10
 input_height , input_width = 224 , 224
 output_height , output_width = 224 , 224
 
+############ Expectation Setup
+
+
+############ Definitions
 def give_color_to_seg_img(seg,n_classes):
     '''
     seg : (input_width,input_height,3)
     '''
-    
     if len(seg.shape)==3:
         seg = seg[:,:,0]
     seg_img = np.zeros( (seg.shape[0],seg.shape[1],3) ).astype('float')
@@ -86,7 +91,7 @@ def IoU(Yi,y_predi):
     print("_________________")
     print("Mean IoU: {:4.3f}".format(mIoU))
 
-def main(n_classes):
+def train(n_classes):
         # Load model
     model = fcn8.FCN8(nClasses = n_classes, input_height = 224, input_width  = 224)
 
@@ -120,8 +125,37 @@ def main(n_classes):
     sgd = optimizers.SGD(lr=1E-2, decay=5**(-4), momentum=0.9, nesterov=True)
     model.compile(loss='categorical_crossentropy', optimizer=sgd, metrics=['accuracy'])
 
-    model.fit(X_train,y_train, validation_data=(X_valid,y_valid), batch_size=32,epochs=3,verbose=2)
+    model.fit(X_train,y_train, validation_data=(X_valid,y_valid), batch_size=32,epochs=epoch_size,verbose=2)
     model.save('road_detection.h5')
+    print("=======Saved model to 'Road_detection_FCN' directory=======")
+
+def predict():
+    dir_test_image = "data_road/testing/image_2/"
+    test_images = os.listdir(dir_test_image)
+    test_images.sort()
+    
+    TEST_X = []
+    for im in test_images:
+        TEST_X.append( getImageArr(dir_test_image + im , input_width , input_height )  )
+    x_test = np.array(TEST_X)
+    Test_dataset = 'Test dataset : {}'.format(x_test.shape)
+    print(Test_dataset)
+
+    model = load_model("road_detection.h5")
+    y_test = model.predict(x_test)
+    y_test_arg = np.argmax(y_test, axis=3)
+    print(y_test_arg.shape)
+
+    run_dir = 'run/'
+    now = datetime.now()
+    run_folder_name = '{}.{}.{}.{}.{}/'.format(now.year,now.month,now.day,now.hour,now.minute) # Year.Month.Day.Hour.Munite
+    run_dir = run_dir + run_folder_name
+    # cv2.imshow('image',give_color_to_seg_img(y_test_arg[1],n_classes))
+    # cv2.waitKey(0)
+    # cv2.destroyAllWindows()
+
+    for seg, im in zip(y_test_arg, test_images):
+        cv2.imwrite(run_dir+im, give_color_to_seg_img(seg,n_classes))
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
@@ -130,6 +164,6 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     if args.command == "train":
-        main(n_classes)
-    elif args.command == "expect":
-        print("=======see you soon========")
+        train(n_classes)
+    elif args.command == "predict":
+        predict()
