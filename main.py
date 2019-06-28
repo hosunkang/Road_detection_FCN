@@ -32,34 +32,20 @@ dir_seg = dir_data + "/gt_image/"
 dir_img = dir_data + "/image/"
 n_classes = 3
 epoch_size = 300
-input_height , input_width = 224 , 224
-output_height , output_width = 224 , 224
-
-############ Expectation Setup
-
+input_height , input_width = 224 , 672
+output_height , output_width = 224 , 672
 
 ############ Definitions
-def give_color_to_seg_img(seg,n_classes):
-    '''
-    seg : (input_width,input_height,3)
-    '''
-    if len(seg.shape)==3:
-        seg = seg[:,:,0]
-    seg_img = np.zeros( (seg.shape[0],seg.shape[1],3) ).astype('float')
-    colors = sns.color_palette("hls", n_classes)
-    
-    for c in range(n_classes):
-        segc = (seg == c)
-        seg_img[:,:,0] += (segc*( colors[c][0] ))
-        seg_img[:,:,1] += (segc*( colors[c][1] ))
-        seg_img[:,:,2] += (segc*( colors[c][2] ))
-
-    return(seg_img)
-
 def getImageArr( path , width , height ):
     img = cv2.imread(path, 1)
     img = np.float32(cv2.resize(img, ( width , height ))) / 127.5 - 1
     return img
+
+def getOrigin( path , width , height ):
+    img = cv2.imread(path, 1)
+    img = np.float32(cv2.resize(img, ( width , height )))
+    return img
+
 
 def getSegmentationArr( path , nClasses ,  width , height  ):
 
@@ -91,10 +77,7 @@ def IoU(Yi,y_predi):
     print("_________________")
     print("Mean IoU: {:4.3f}".format(mIoU))
 
-def train(n_classes):
-        # Load model
-    model = fcn8.FCN8(nClasses = n_classes, input_height = 224, input_width  = 224)
-
+def train(model, n_classes):
     images = os.listdir(dir_img)
     images.sort()
     segmentations  = os.listdir(dir_seg)
@@ -135,8 +118,10 @@ def predict():
     test_images.sort()
     
     TEST_X = []
+    origin_x = []
     for im in test_images:
         TEST_X.append( getImageArr(dir_test_image + im , input_width , input_height )  )
+        origin_x.append( getOrigin(dir_test_image + im , input_width , input_height )  )
     x_test = np.array(TEST_X)
     Test_dataset = 'Test dataset : {}'.format(x_test.shape)
     print(Test_dataset)
@@ -155,15 +140,26 @@ def predict():
                                                                     now.minute)
     run_dir = run_dir + run_folder_name
     os.mkdir(run_dir)
-    
 
-    for seg, im in zip(y_test_arg, test_images):
-        temp = give_color_to_seg_img(seg,n_classes)
-        temp = 255 * temp # Now scale by 255
-        img = temp.astype(np.uint8)
-        cv2.imwrite(run_dir+im, img)
+    for image ,seg, name in zip(origin_x, y_test_arg, test_images):
+        seg_img = give_color_to_seg_img(image, seg)
+        cv2.imwrite(run_dir+name, seg_img)
     
     print("=======Saved all Segmentation Images=======")
+
+def give_color_to_seg_img(image, seg):
+    seg = 255 * seg # Now scale by 255
+    seg = seg.astype(np.uint8)
+    seg = cv2.cvtColor(seg,cv2.COLOR_GRAY2BGR)
+    blank_image = np.zeros((input_height,input_width,3), np.uint8)
+    blank_image[:,:] = (0,255,0)
+    seg = cv2.bitwise_and(seg, blank_image)
+
+    seg_img = seg + image
+    seg_img = cv2.addWeighted(image, 1, seg_img, 0.7, 0)
+    # seg_img = cv2.bitwise_and(image, seg)
+
+    return(seg_img)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
@@ -172,6 +168,9 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     if args.command == "train":
-        train(n_classes)
+        # Load model
+        model = fcn8.FCN8(nClasses = n_classes, input_height = input_height, input_width  = input_width)
+        model.summary()
+        train(model, n_classes)
     elif args.command == "predict":
         predict()
