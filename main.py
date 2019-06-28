@@ -154,10 +154,7 @@ def give_color_to_seg_img(image, seg):
     blank_image = np.zeros((input_height,input_width,3), np.uint8)
     blank_image[:,:] = (0,255,0)
     seg = cv2.bitwise_and(seg, blank_image)
-
     seg_img = seg + image
-    seg_img = cv2.addWeighted(image, 1, seg_img, 0.7, 0)
-    # seg_img = cv2.bitwise_and(image, seg)
 
     return(seg_img)
 
